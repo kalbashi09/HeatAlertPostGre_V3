@@ -1,0 +1,7 @@
+.env
+
+backend/appsettings.json
+
+backend/obj
+
+backend/bin
