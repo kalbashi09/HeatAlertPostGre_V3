@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HEATSYNC | Sensor Command</title>
+    <link rel="stylesheet" href="./dist/output.css" />
+    <script src="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.js"></script>
+    <link
+      href="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.css"
+      rel="stylesheet"
+    />
+
+    <link rel="icon" type="image/png" href="HeatSynclogo.png" />
+
+    <link rel="shortcut icon" href="~/favicon.ico" type="image/x-icon" />
+
+    <link rel="stylesheet" href="mapUI.css" />
+    <script src="config.js"></script>
+  </head>
+  <body class="h-screen overflow-hidden flex flex-col md:flex-row bg-[#020617]">
+    <header
+      class="absolute top-0 left-0 right-0 z-30 p-4 pointer-events-none md:hidden"
+    >
+      <div class="flex items-center justify-between max-w-full">
+        <div
+          class="pointer-events-auto bg-slate-950/90 backdrop-blur-md p-3 rounded-lg border border-slate-800/50"
+        >
+          <h1 class="text-sm font-bold tracking-[0.2em] text-white">
+            HEALERTSYS
+          </h1>
+          <p
+            class="text-[8px] text-blue-500/80 font-bold uppercase tracking-widest"
+          >
+            Grid v3.0
+          </p>
+        </div>
+
+        <a
+          href="https://t.me/MyHeatMonitorBot"
+          target="_blank"
+          class="pointer-events-auto bg-[#229ED9] text-white text-[10px] font-bold px-4 py-2 rounded-full flex items-center gap-2 shadow-lg border border-white/10"
+        >
+          <span>✈️</span> BOT
+        </a>
+      </div>
+    </header>
+
+    <aside
+      id="mainDrawer"
+      class="absolute bottom-0 left-0 right-0 md:relative md:w-[420px] bg-[#030712]/95 md:bg-[#030712] border-t md:border-t-0 md:border-r border-slate-800/50 flex flex-col h-[40vh] md:h-full z-20 backdrop-blur-lg md:backdrop-blur-none transition-all duration-300"
+    >
+      <div
+        class="md:hidden w-full py-3 cursor-pointer"
+        onclick="toggleDrawer()"
+      >
+        <div class="w-10 h-1 bg-slate-700 rounded-full mx-auto"></div>
+      </div>
+
+      <div
+        class="hidden md:block p-6 border-b border-slate-900 bg-slate-950/50"
+      >
+        <div class="flex items-center justify-between mb-2">
+          <div>
+            <h1 class="text-xl font-bold tracking-tight">
+              HEAT<span class="text-orange-500">SYNC</span>
+            </h1>
+            <p
+              class="text-[9px] text-blue-500/80 font-bold uppercase tracking-widest mt-1"
+            >
+              Grid Command v3.0
+            </p>
+          </div>
+          <a
+            href="https://t.me/MyHeatMonitorBot"
+            target="_blank"
+            class="bg-[#229ED9]/10 hover:bg-[#229ED9]/20 text-[#229ED9] text-[10px] font-bold px-3 py-1.5 rounded border border-[#229ED9]/30 transition-all uppercase"
+          >
+            Telegram Bot
+          </a>
+        </div>
+      </div>
+
+      <div
+        class="p-4 md:p-6 border-b border-slate-900 bg-slate-950/30 cursor-pointer md:cursor-default"
+        onclick="toggleDrawer()"
+      >
+        <div class="flex items-center justify-between mb-4">
+          <div
+            class="text-[10px] text-slate-500 font-bold uppercase tracking-tighter"
+          >
+            Grid Status
+          </div>
+          <span
+            id="sync-status"
+            class="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-1 rounded border border-blue-500/20"
+            >READY</span
+          >
+        </div>
+
+        <button
+          onclick="
+            event.stopPropagation();
+            syncData(true);
+          "
+          class="w-full bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold p-3 rounded transition-all flex items-center justify-center gap-3 shadow-lg shadow-blue-900/20"
+        >
+          <span id="sync-icon">📡</span> SYNC LATEST SENSORS
+        </button>
+      </div>
+
+      <div class="px-4 py-3 bg-slate-950/20 border-b border-slate-900/50">
+        <div class="relative">
+          <i
+            data-lucide="search"
+            class="absolute left-3 top-2.5 w-4 h-4 text-slate-600"
+          ></i>
+          <input
+            type="text"
+            id="brgySearch"
+            placeholder="Search Barangay (e.g. Poblacion)"
+            class="w-full bg-slate-950 border border-slate-800 rounded-md py-2 pl-9 pr-4 text-xs text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all placeholder:text-slate-700"
+          />
+        </div>
+      </div>
+
+      <div
+        class="flex-grow overflow-y-auto custom-scroll p-4 space-y-3"
+        id="sensorList"
+      ></div>
+
+      <div
+        class="flex-grow overflow-y-auto custom-scroll p-4 space-y-3"
+        id="sensorList"
+      ></div>
+
+      <div
+        class="p-3 bg-black/40 border-t border-slate-900 flex flex-col gap-2"
+      >
+        <div class="text-[9px] flex justify-between font-mono">
+          <span id="active-sensor-code" class="text-slate-400 uppercase"
+            >NODE: NULL</span
+          >
+          <span id="last-ping" class="text-slate-500">PING: --</span>
+        </div>
+
+        <div class="hidden md:block pt-2 border-t border-slate-800/50">
+          <button
+            onclick="handleLogout()"
+            class="w-full flex items-center justify-between group px-2 py-1.5 rounded hover:bg-red-500/10 transition-colors text-slate-500 hover:text-red-400"
+          >
+            <span class="text-[10px] font-bold uppercase tracking-widest"
+              >Admin Session</span
+            >
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="flex-grow relative bg-[#010409] h-full">
+      <div id="map" class="w-full h-full opacity-80"></div>
+      <div
+        class="absolute inset-0 pointer-events-none shadow-[inset_0_0_150px_rgba(0,0,0,0.9)] border-[10px] md:border-[20px] border-black/10"
+      ></div>
+    </main>
+
+    <script src="mapUI.js"></script>
+  </body>
+</html>
