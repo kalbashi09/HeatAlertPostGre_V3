@@ -22,7 +22,11 @@ string botToken = builder.Configuration["BotSettings:TelegramToken"]!;
 
 // 2. SERVICES SETUP
 builder.Services.AddCors(options => {
-    options.AddPolicy("AllowAll", policy => policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+    options.AddPolicy("FrontendOnly", policy => {
+        policy.WithOrigins("http://127.0.0.1:5500", "http://localhost:5500") 
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
 });
 
 var db = new DatabaseManager(connString);
@@ -49,9 +53,10 @@ try {
     Console.WriteLine($"❌ FATAL DB ERROR: {ex.Message}");
 }
 
-app.UseCors("AllowAll");
+app.UseCors("FrontendOnly");
 app.UseRouting();
 app.RegisterAlertEndpoints(db);
+app.RegisterAuthEndpoints();
 
 // 4. THE V3 SIMULATION ENGINE
 // 4. THE V3 SIMULATION ENGINE
@@ -59,6 +64,9 @@ _ = Task.Run(async () => {
     bot.StartBot();
     
     var simulator = new HeatSimulator(); 
+
+    // Temporary line to run once to see a valid hash in your console:
+    Console.WriteLine($"New Hash for 123456: {BCrypt.Net.BCrypt.HashPassword("123456")}");
 
     while (true)
     {
@@ -113,7 +121,8 @@ _ = Task.Run(async () => {
     }
 });
 
-app.MapMethods("/", new[] { "GET", "HEAD" }, () => "HEALERTSYS V3 API is Live.");
+app.MapMethods("/", new[] { "GET", "HEAD" }, () => "HEALERTSYS V3 API is Live."); 
+
 app.Run();
 
 
@@ -140,9 +149,11 @@ public static class GlobalData {
 
     public static DateTime GetPHTime() 
     {
-        // Get the actual PH Time instead of UTC
         var phZone = TimeZoneInfo.FindSystemTimeZoneById("Asia/Manila");
-        return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, phZone);
+        var phTime = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, phZone);
+        
+        // This tells the Database Driver: "Don't try to offset this, it's already local."
+        return DateTime.SpecifyKind(phTime, DateTimeKind.Unspecified);
     }
 }
 
@@ -170,3 +181,15 @@ public class SensorUpdateDto
         public string? EnvironmentType { get; set; }
         public bool? IsActive { get; set; }
     }
+
+    public class AdminUser {
+    public int Id { get; set; }
+    public string PersonnelId { get; set; }
+    public string Hash { get; set; }
+    public string FullName { get; set; }
+}
+
+public class LoginRequest {
+    public string PersonnelId { get; set; }
+    public string Passcode { get; set; }
+}

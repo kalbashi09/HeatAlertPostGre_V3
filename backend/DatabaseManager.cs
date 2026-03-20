@@ -310,5 +310,106 @@ namespace HeatAlert
             }
             return list;
         }
+
+        public async Task<AdminUser?> GetAdminByPersonnelId(string personnelId)
+        {
+            using var connection = new NpgsqlConnection(_connString);
+            await connection.OpenAsync();
+
+            // We only want active personnel
+            string query = "SELECT AdminUID, PersonnelID, PasscodeHash, FullName FROM AuthPersonnel WHERE PersonnelID = @pid AND IsActive = TRUE";
+
+            using var cmd = new NpgsqlCommand(query, connection);
+            cmd.Parameters.AddWithValue("@pid", personnelId);
+
+            using var reader = await cmd.ExecuteReaderAsync();
+            if (await reader.ReadAsync())
+            {
+                return new AdminUser
+                {
+                    Id = reader.GetInt32(0),
+                    PersonnelId = reader.GetString(1),
+                    Hash = reader.GetString(2),
+                    FullName = reader.GetString(3)
+                };
+            }
+            return null;
+        }
+
+        // Update Last Login timestamp
+        public async Task UpdateAdminLoginTime(int adminUid)
+        {
+            using var connection = new NpgsqlConnection(_connString);
+            await connection.OpenAsync();
+            string query = "UPDATE AuthPersonnel SET LastLogin = @now WHERE AdminUID = @id";
+            using var cmd = new NpgsqlCommand(query, connection);
+            cmd.Parameters.AddWithValue("@now", GlobalData.GetPHTime());
+            cmd.Parameters.AddWithValue("@id", adminUid);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // --- NEW: DELETE SENSOR AND ITS LOGS (THE "NUCLEAR" OPTION) ---
+        public async Task<bool> DeleteSensorOnly(int sensorId)
+        {
+            using var connection = new NpgsqlConnection(_connString);
+            await connection.OpenAsync();
+
+            // Transaction ensures we don't delete logs and then fail to delete the sensor
+            using var transaction = await connection.BeginTransactionAsync();
+
+            try
+            {
+                // 1. Wipe the logs first (referencing the Foreign Key)
+                string logQuery = "DELETE FROM heat_logs WHERE sensor_id = @sid";
+                using (var cmd = new NpgsqlCommand(logQuery, connection, transaction))
+                {
+                    cmd.Parameters.AddWithValue("@sid", sensorId);
+                    await cmd.ExecuteNonQueryAsync();
+                }
+
+                // 2. Delete the actual sensor record
+                string sensorQuery = "DELETE FROM sensor_registry WHERE id = @sid";
+                using (var cmd = new NpgsqlCommand(sensorQuery, connection, transaction))
+                {
+                    cmd.Parameters.AddWithValue("@sid", sensorId);
+                    int rows = await cmd.ExecuteNonQueryAsync();
+                    
+                    await transaction.CommitAsync(); 
+                    Console.WriteLine($"--- [DB]: Sensor {sensorId} and associated logs purged. ---");
+                    return rows > 0;
+                }
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                Console.WriteLine($"[DELETE ERROR]: {ex.Message}");
+                return false;
+            }
+        }
+
+        // --- NEW: WIPE LOGS FOR ONE SENSOR (KEEP THE SENSOR, CLEAR DATA) ---
+        public async Task ClearSensorHistory(int sensorId)
+        {
+            try
+            {
+                using var connection = new NpgsqlConnection(_connString);
+                await connection.OpenAsync();
+
+                string query = "DELETE FROM heat_logs WHERE sensor_id = @sid";
+                using var cmd = new NpgsqlCommand(query, connection);
+                cmd.Parameters.AddWithValue("@sid", sensorId);
+                
+                int deleted = await cmd.ExecuteNonQueryAsync();
+                Console.WriteLine($"--- [DB Cleanup]: Cleared {deleted} logs for Sensor {sensorId}. ---");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[LOG CLEAR ERROR]: {ex.Message}");
+            }
+        }
+        
+
     }
+
+    
 }

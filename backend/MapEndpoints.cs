@@ -12,6 +12,30 @@ namespace HeatAlert
     public static class MapEndpoints
     {
         // OLD (Causing the error)
+
+        public static void RegisterAuthEndpoints(this IEndpointRouteBuilder app)
+        {
+            app.MapPost("/api/auth/login", async (LoginRequest request, DatabaseManager db) =>
+            {
+                Console.WriteLine($"--- [AUTH ATTEMPT]: ID: {request.PersonnelId} ---"); // DEBUG
+                
+                var admin = await db.GetAdminByPersonnelId(request.PersonnelId);
+
+                if (admin == null) 
+                {
+                    Console.WriteLine("--- [AUTH ERROR]: Personnel ID not found in DB ---"); // DEBUG
+                    return Results.Json(new { message = "Invalid ID" }, statusCode: 401);
+                }
+
+                bool isValid = BCrypt.Net.BCrypt.Verify(request.Passcode, admin.Hash);
+                Console.WriteLine($"--- [AUTH RESULT]: Password Match = {isValid} ---"); // DEBUG
+
+                if (!isValid) return Results.Json(new { message = "Incorrect Passcode" }, statusCode: 401);
+
+                return Results.Ok(new { message = "Success", user = admin.FullName });
+            });
+        }
+
         public static void RegisterAlertEndpoints(this IEndpointRouteBuilder app, DatabaseManager db)
         {
             // 1. GET: Fetch current data (Public)
@@ -33,28 +57,25 @@ namespace HeatAlert
 
             // 3. GET: Heat History (SECURED)
             app.MapGet("/api/live-heat-history", async (HttpContext context, DatabaseManager db, int? limit) => {
-                if (IsNotAuthorized(context)) return Results.Unauthorized();
                 try {
                     var history = await db.GetHistory(limit ?? 100);
                     if (!history.Any()) return Results.NotFound("No heat logs found.");
 
                     var friendlyHistory = history.Select(h => {
-                        // Adjust for Philippine Time (UTC+8)
-                        DateTime phTime = h.CreatedAt.AddHours(8);
-
-                        return new {
-                            h.SensorCode,
-                            h.DisplayName,
-                            h.BarangayName,
-                            h.HeatIndex,
-                            h.Lat,
-                            h.Lng,
-                            Date = phTime.ToString("MMM dd, yyyy"),
-                            Time = phTime.ToString("hh:mm tt"), 
-                            // NEW: Provide the machine-readable timestamp
-                            RawTime = phTime 
-                        };
-                    });
+                    // Let the RawTime remain exactly what is in the DB (UTC)
+                    // We will let the JavaScript frontend handle the +8 display.
+                    return new {
+                        h.SensorCode,
+                        h.DisplayName,
+                        h.BarangayName,
+                        h.HeatIndex,
+                        h.Lat,
+                        h.Lng,
+                        Date = h.CreatedAt.ToString("MMM dd, yyyy"),
+                        Time = h.CreatedAt.ToString("hh:mm tt"), 
+                        RawTime = h.CreatedAt 
+                    };
+                });
                     return Results.Ok(friendlyHistory);
                 }
                 catch (Exception ex) { return Results.Problem($"Database Error: {ex.Message}"); }
@@ -94,13 +115,42 @@ namespace HeatAlert
 
             // 5. POST: Register Sensor
             app.MapPost("/api/register-sensor", async (HttpContext context, SensorNode newSensor, DatabaseManager db) => {
-                if (IsNotAuthorized(context)) return Results.Unauthorized();
                 try {
                     await db.CreateSensor(newSensor); 
                     return Results.Ok(new { message = $"Sensor {newSensor.SensorCode} registered!" });
                 }
                 catch (Exception ex) { return Results.Problem($"Registration Error: {ex.Message}"); }
             });
+
+            // 6. DELETE: Permanent removal of a sensor and its logs
+            app.MapDelete("/api/sensors/{id}", async (int id, DatabaseManager db) => 
+            {
+                try 
+                {
+                    // First, check if the sensor even exists
+                    var existing = await db.GetSensorById(id);
+                    if (existing == null) 
+                    {
+                        return Results.NotFound(new { message = $"Sensor with ID {id} does not exist." });
+                    }
+
+                    // Execute the "Nuclear" delete we wrote earlier
+                    bool success = await db.DeleteSensorOnly(id);
+
+                    if (success) 
+                    {
+                        Console.WriteLine($"--- [DB]: Sensor {id} ({existing.DisplayName}) has been purged from the system. ---");
+                        return Results.Ok(new { message = $"Sensor {id} and its history were deleted." });
+                    }
+
+                    return Results.Problem("Failed to delete sensor. Check database logs.");
+                }
+                catch (Exception ex) 
+                { 
+                    return Results.Problem($"API Delete Error: {ex.Message}"); 
+                }
+            });
+            
         }
 
         // --- HELPERS (Moved outside the method, inside the class) ---
@@ -118,7 +168,8 @@ namespace HeatAlert
 
         private static string GetRelativeTime(DateTime time)
         {
-            var delta = DateTime.UtcNow.AddHours(8) - time;
+            // ❌ Change DateTime.UtcNow.AddHours(8) to just DateTime.UtcNow
+            var delta = DateTime.UtcNow - time; 
             if (delta.TotalMinutes < 1) return "Just now";
             if (delta.TotalMinutes < 60) return $"{(int)delta.TotalMinutes}m ago";
             if (delta.TotalHours < 24) return $"{(int)delta.TotalHours}h ago";
@@ -127,5 +178,7 @@ namespace HeatAlert
     }
 
     public record SensorReportRequest(int SensorId, int Temperature);
+
+    public record LoginRequest(string PersonnelId, string Passcode);
     public record SubscriberRequest(long ChatId, string Username);
 }
