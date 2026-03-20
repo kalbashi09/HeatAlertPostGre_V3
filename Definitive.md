@@ -1,7 +1,5 @@
 ## Hyper-Local Heat Index Monitoring: A Low-Cost Alert System for Vulnerable Urban Communities
 
-**Subtitle:** _A High-Resolution Hyperlocal Heat Monitoring & Automated Alert Ecosystem_
-
 ### 📌 The Core Thesis
 
 **HeAlertSys** is a full-stack environmental monitoring platform specifically engineered to address the "Urban Heat Island" effect in **Talisay City**. Unlike traditional weather apps that provide a single city-wide temperature, this system utilizes a distributed network of independent sensor nodes to provide **barangay-level granularity** in real-time.
