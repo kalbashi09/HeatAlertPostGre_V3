@@ -1,6 +1,6 @@
 # 🌡️ HEATSYNC (Heat Alert System) - Talisay City
 
-**HEALERTSYS** is a backend-driven simulation platform designed to monitor and broadcast heat index alerts for the various barangays of **Talisay City, Cebu**.
+**HEATSYNC** is a backend-driven simulation platform designed to monitor and broadcast heat index alerts for the various barangays of **Talisay City, Cebu**.
 
 Think of this API as a network of **virtual thermometers** scattered across the city, providing real-time simulated data to test emergency response, public health dashboards, and automated alerting systems.
 
