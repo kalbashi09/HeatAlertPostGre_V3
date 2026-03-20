@@ -132,20 +132,19 @@ function focusNode(node) {
     `NODE: ${node.sensorCode}`;
   document.getElementById("last-ping").innerText = `PING: ${node.time}`;
 
+  // Change your color mapping slightly to be more vibrant
   const color =
     node.heatIndex >= 42
-      ? "#e11d48"
+      ? "#ff0040" // Brighter Rose
       : node.heatIndex >= 39
-        ? "#f59e0b"
-        : "#10b981";
+        ? "#fbbf24" // Brighter Amber
+        : "#10b981"; // Emerald
 
   const el = document.createElement("div");
-
-  // 2. ADD 'is-active' HERE. This forces the CSS to show the info box on mobile.
   el.className = "radar-node is-active";
 
   el.innerHTML = `
-        <div class="node-pulse" style="background: radial-gradient(circle, ${color}33 0%, transparent 70%); border: 1px solid ${color}44"></div>
+        <div class="node-pulse" style="background: radial-gradient(circle, ${color}88 0%, transparent 70%); border: 2px solid ${color}aa"></div>
         <div class="node-core" style="background: ${color}"></div>
         <div class="node-overlay">
             <div class="flex justify-between items-center mb-2 border-b border-slate-700 pb-2">
