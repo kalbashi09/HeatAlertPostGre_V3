@@ -199,5 +199,18 @@ document.getElementById("updateForm").onsubmit = async (e) => {
   }
 };
 
+function handleLogout() {
+  // 1. Optional: Add a confirmation
+  if (!confirm("Are you sure you want to logout of HeatSync Admin?")) return;
+
+  // 2. Clear session/local storage (if you used them for login)
+  localStorage.removeItem("adminLoggedIn");
+  localStorage.removeItem("adminUser");
+  sessionStorage.clear();
+
+  // 3. Redirect to login page
+  window.location.href = "logindash.html";
+}
+
 // Start!
 loadSensors();
