@@ -66,7 +66,7 @@ _ = Task.Run(async () => {
     var simulator = new HeatSimulator(); 
 
     // Temporary line to run once to see a valid hash in your console:
-    Console.WriteLine($"New Hash for 123456: {BCrypt.Net.BCrypt.HashPassword("123456")}");
+    Console.WriteLine($"New Hash for deV000bknd01: {BCrypt.Net.BCrypt.HashPassword("deV000bknd01")}");
 
     while (true)
     {
