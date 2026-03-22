@@ -17,30 +17,21 @@ namespace HeatAlert
         {
             app.MapPost("/api/auth/login", async (LoginRequest request, DatabaseManager db) =>
             {
-                Console.WriteLine($"--- [AUTH ATTEMPT]: ID: {request.PersonnelId} ---");
-
                 var admin = await db.GetAdminByPersonnelId(request.PersonnelId);
 
-                if (admin == null) 
+                // Even if admin is null, we verify against a 'fake' hash 
+                // to ensure the CPU work is roughly the same.
+                string hashToVerify = admin?.Hash ?? "$2a$11$SimulatedHashForTimingProtection";
+                bool isValid = BCrypt.Net.BCrypt.Verify(request.Passcode, hashToVerify);
+
+                // Now check both conditions at once
+                if (admin == null || !isValid) 
                 {
-                    Console.WriteLine("--- [AUTH ERROR]: Personnel ID not found in DB ---");
-                    return Results.Json(new { message = "Invalid ID" }, statusCode: 401);
+                    return Results.Json(new { message = "Invalid Credential" }, statusCode: 401);
                 }
 
-                // Verify Passcode
-                bool isValid = BCrypt.Net.BCrypt.Verify(request.Passcode, admin.Hash);
-                Console.WriteLine($"--- [AUTH RESULT]: Password Match = {isValid} ---");
-
-                if (!isValid) return Results.Json(new { message = "Incorrect Passcode" }, statusCode: 401);
-
-                // 🔥 PLUGGED IN: Record the login timestamp using the admin's unique ID
                 await db.UpdateAdminLoginTime(admin.Id);
-
-                return Results.Ok(new { 
-                    message = "Success", 
-                    user = admin.FullName,
-                    pid = admin.PersonnelId 
-                });
+                return Results.Ok(new { message = "Success", user = admin.FullName });
             });
         }
 
@@ -89,14 +80,65 @@ namespace HeatAlert
                 catch (Exception ex) { return Results.Problem($"Database Error: {ex.Message}"); }
             });
 
-            app.MapPatch("/api/sensors/{id}", async (int id, SensorUpdateDto dto, DatabaseManager db) => 
-            {
-                var existing = await db.GetSensorById(id);
-                if (existing == null) return Results.NotFound($"Sensor {id} not found.");
+            // 3. PATCH: Update Sensor
+app.MapPatch("/api/sensors/{id}", async (int id, SensorUpdateDto dto, DatabaseManager db) => 
+{
+    try 
+    {
+        // 1. The "Space" Check (Validation)
+        // Use .GetValueOrDefault() to treat null as 0, or check .HasValue
+        if (dto.Lat.HasValue && Math.Abs(dto.Lat.Value) > 90) 
+        {
+            return Results.Json(new { message = "❌ Latitude is outside Earth's boundaries!" }, statusCode: 400);
+        }
 
-                await db.UpdateSensorFlexible(id, dto);
-                return Results.Ok(new { message = "Sensor updated successfully." });
-            });
+        if (dto.Lng.HasValue && Math.Abs(dto.Lng.Value) > 180) 
+        {
+            return Results.Json(new { message = "❌ Longitude is outside Earth's boundaries!" }, statusCode: 400);
+        }
+
+        var existing = await db.GetSensorById(id);
+        if (existing == null) 
+            return Results.Json(new { message = $"❌ Sensor {id} not found." }, statusCode: 404);
+
+        await db.UpdateSensorFlexible(id, dto);
+        return Results.Ok(new { message = $"✅ {dto.SensorCode} updated successfully." });
+    }
+    catch (Exception ex) when (ex.Message.Contains("23505") || ex.Message.Contains("DUPLICATE"))
+    {
+        // Catches PostgreSQL unique constraint (23505) or custom "DUPLICATE_CODE"
+        return Results.Json(new { message = $"❌ Conflict: The code \"{dto.SensorCode}\" is already assigned to another sensor." }, statusCode: 409);
+    }
+    catch (Exception ex) 
+    { 
+        // Tell it like it is for other errors
+        return Results.Json(new { message = $"❌ Server Error: {ex.Message}" }, statusCode: 500); 
+    }
+});
+
+// 5. POST: Register Sensor
+app.MapPost("/api/register-sensor", async (SensorNode newSensor, DatabaseManager db) => 
+{
+    try 
+    {
+        // 1. Geography Check
+        if (Math.Abs(newSensor.Lat) > 90 || Math.Abs(newSensor.Lng) > 180)
+        {
+            return Results.Json(new { message = "❌ Error: Coordinates are outside Earth's limits. Check Lat/Long." }, statusCode: 400);
+        }
+
+        await db.CreateSensor(newSensor); 
+        return Results.Ok(new { message = $"✅ Sensor {newSensor.SensorCode} registered!" });
+    }
+    catch (Exception ex) when (ex.Message.Contains("23505") || ex.Message.Contains("Duplicate"))
+    {
+        return Results.Json(new { message = $"❌ Conflict: The code \"{newSensor.SensorCode}\" is already assigned to another sensor." }, statusCode: 409);
+    }
+    catch (Exception ex) 
+    { 
+        return Results.Json(new { message = $"❌ Registration Error: {ex.Message}" }, statusCode: 500); 
+    }
+});
 
             // 4. POST: Log Heat
             app.MapPost("/api/log-heat", async (HttpContext context, SensorReportRequest request, DatabaseManager db, BotAlertSender bot) => {
@@ -121,14 +163,6 @@ namespace HeatAlert
                 catch (Exception ex) { return Results.Problem($"API Error: {ex.Message}"); }
             });
 
-            // 5. POST: Register Sensor
-            app.MapPost("/api/register-sensor", async (HttpContext context, SensorNode newSensor, DatabaseManager db) => {
-                try {
-                    await db.CreateSensor(newSensor); 
-                    return Results.Ok(new { message = $"Sensor {newSensor.SensorCode} registered!" });
-                }
-                catch (Exception ex) { return Results.Problem($"Registration Error: {ex.Message}"); }
-            });
 
             // 6. DELETE: Permanent removal of a sensor and its logs
             app.MapDelete("/api/sensors/{id}", async (int id, DatabaseManager db) => 

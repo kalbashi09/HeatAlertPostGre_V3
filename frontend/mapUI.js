@@ -12,6 +12,12 @@ const map = new maplibregl.Map({
   attributionControl: false,
 });
 
+// Add this at the VERY top
+if (typeof HEALERTSYS_CONFIG === "undefined") {
+  console.error("CRITICAL: config.js is missing or not loaded!");
+  alert("System Configuration Error. Check console.");
+}
+
 // --- 0. SHARED COLOR LOGIC (5 STATES) ---
 function getHeatColor(heat) {
   if (heat >= 49) return "#be123c"; // 🔴 EXTREME DANGER
@@ -61,6 +67,7 @@ async function syncData(flyToLatest = false) {
     const data = await response.json();
     allNodes = data;
 
+    // Standard Search Filter Logic
     const currentSearch = document
       .getElementById("brgySearch")
       .value.toLowerCase()
@@ -76,7 +83,26 @@ async function syncData(flyToLatest = false) {
       renderSidebar(allNodes);
     }
 
-    if (flyToLatest && data.length > 0) focusNode(data[0]);
+    // --- NEW: FLY TO THE HOTTEST SENSOR ---
+    if (flyToLatest && data.length > 0) {
+      // 1. Get the latest time window
+      const latestTime = Math.max(
+        ...data.map((n) => new Date(n.rawTime).getTime()),
+      );
+
+      // 2. Filter for nodes in that window
+      const latestNodes = data.filter(
+        (n) => new Date(n.rawTime).getTime() === latestTime,
+      );
+
+      // 3. Find the one with the highest Heat Index
+      const hottestNode = latestNodes.sort(
+        (a, b) => parseFloat(b.heatIndex) - parseFloat(a.heatIndex),
+      )[0];
+
+      if (hottestNode) focusNode(hottestNode);
+    }
+
     status.innerText = "READY";
   } catch (e) {
     status.innerText = "ERROR";
@@ -91,47 +117,71 @@ function renderSidebar(data) {
 
   if (!data || data.length === 0) return;
 
-  // 1. HELPER: Normalize time to the start of the minute
-  // We use rawTime because it's the most accurate ISO format
+  // --- 1. HELPER FOR TIME COMPARISON ---
   const getMinuteBasis = (node) => {
     const d = new Date(node.rawTime || node.time);
     d.setSeconds(0, 0);
     return d.getTime();
   };
 
-  // 2. FIND THE LATEST MINUTE WINDOW
-  // This ensures TAL-01 and TAC-02 compete if they both reported at 10:55 PM
-  const latestMinute = Math.max(...data.map((n) => getMinuteBasis(n)));
+  // --- 2. UNIQUE FILTER: Keep only the latest entry per Sensor Code ---
+  const uniqueSensors = Object.values(
+    data.reduce((acc, current) => {
+      const sensorId = current.sensorCode;
+      const currentTimestamp = new Date(current.rawTime).getTime();
 
-  // 3. ISOLATE CANDIDATES FOR THE CROWN
-  const currentWindowNodes = data.filter(
+      if (
+        !acc[sensorId] ||
+        currentTimestamp > new Date(acc[sensorId].rawTime).getTime()
+      ) {
+        acc[sensorId] = current;
+      }
+      return acc;
+    }, {}),
+  );
+
+  // --- 3. SORTING: Newest first ---
+  uniqueSensors.sort((a, b) => new Date(b.rawTime) - new Date(a.rawTime));
+
+  // --- 4. FIND THE "HOTTEST" NODES (Handling Ties) ---
+  const latestMinute = Math.max(...uniqueSensors.map((n) => getMinuteBasis(n)));
+  const currentWindowNodes = uniqueSensors.filter(
     (n) => getMinuteBasis(n) === latestMinute,
   );
 
-  // 4. PICK THE KING (Hottest in the latest minute)
-  currentWindowNodes.sort(
-    (a, b) => parseFloat(b.heatIndex) - parseFloat(a.heatIndex),
+  // Get the highest value in this window
+  const maxHeatInWindow = Math.max(
+    ...currentWindowNodes.map((n) => parseFloat(n.heatIndex)),
   );
-  const priorityNode = currentWindowNodes[0];
 
-  // 5. ASSEMBLE LIST
-  // Priority first, then the rest of the nodes in their original order
-  const remainingNodes = data.filter((n) => n !== priorityNode);
-  const finalSortedList = [priorityNode, ...remainingNodes];
+  // Find ALL nodes that have this max heat
+  const priorityNodes = currentWindowNodes.filter(
+    (n) => parseFloat(n.heatIndex) === maxHeatInWindow,
+  );
 
-  // 6. RENDER
-  finalSortedList.forEach((node, index) => {
-    const isPriority = priorityNode && node === priorityNode;
+  // --- 5. ASSEMBLE FINAL LIST ---
+  // Remove all priority nodes from the rest of the list to avoid duplicates
+  const remainingNodes = uniqueSensors.filter(
+    (n) => !priorityNodes.includes(n),
+  );
+
+  // Put all hottest nodes at the very top
+  const finalSortedList = [...priorityNodes, ...remainingNodes];
+
+  // --- 6. RENDER LOOP ---
+  finalSortedList.forEach((node) => {
+    // Change this check to look inside the array
+    const isPriority = priorityNodes.includes(node);
+
     const heat = node.heatIndex;
     const colorHex = getHeatColor(heat);
     const colorClass = getTailwindColorClass(heat);
 
+    // ... rest of your card creation code ...
     const card = document.createElement("div");
-
     card.className = `bg-slate-900/30 border border-white/5 border-l-4 p-4 cursor-pointer hover:bg-white/[0.03] transition-all group ${
       isPriority ? "bg-white/[0.02] border-l-[#f24e1e]" : ""
     }`;
-    card.style.borderLeftColor = isPriority ? "#f24e1e" : colorHex;
 
     card.innerHTML = `
       <div class="flex justify-between items-start">
@@ -222,4 +272,4 @@ function handleLogout() {
 // Initialization
 if (window.lucide) lucide.createIcons();
 map.on("load", () => syncData(false));
-setInterval(() => syncData(false), 30000);
+setInterval(() => syncData(false), 15000); // 15 seconds

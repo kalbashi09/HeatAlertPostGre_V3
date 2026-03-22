@@ -102,8 +102,9 @@ function handleEditClick(sensor) {
 
   // Lock the code field for edits
   const codeField = document.getElementById("editCode");
-  codeField.disabled = true;
-  codeField.classList.add("opacity-70", "cursor-not-allowed");
+  codeField.disabled = false; // Allow editing the code if you want, or set to true to lock
+  codeField.classList.remove("opacity-70", "cursor-not-allowed");
+  codeField.classList.add("cursor-text");
 
   document.querySelector('#updateForm button[type="submit"]').innerText =
     "Save Changes";
@@ -191,8 +192,15 @@ document.getElementById("updateForm").onsubmit = async (e) => {
       );
       loadSensors();
       closeEdit();
+    }
+    // 🔥 ADD THIS SPECIFIC CHECK HERE
+    else if (res.status === 409) {
+      alert(
+        `❌ Conflict: The code "${sensorCode}" is already assigned to another sensor.`,
+      );
     } else {
-      alert("❌ Error: " + (await res.text()));
+      const errorText = await res.text();
+      alert("❌ Server Error: " + errorText);
     }
   } catch (err) {
     alert("Critical: Could not reach the server.");
