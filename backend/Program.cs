@@ -77,17 +77,38 @@ _ = Task.Run(async () => {
 
             foreach (var sensor in sensors)
             {
-
                 // Fail-safe: Skip if somehow an inactive sensor got into the list
-                if (!sensor.IsActive) 
+                if (!sensor.IsActive)
                 {
                     Console.WriteLine($"❄️ [FREEZE] {sensor.DisplayName} is inactive. Skipping...");
-                    continue; 
+                    continue;
                 }
 
-                int simTemp = simulator.GenerateReading(sensor.BaselineTemp); 
+                int simTemp;
+                if (BotAlertSender.ManualSensorSessions.TryGetValue(sensor.Id, out var track))
+                {
+                    simTemp = track.fixedHeatIndex;
 
-                var result = new AlertResult {
+                    track.remainingCycles -= 1;
+                    if (track.remainingCycles <= 0)
+                    {
+                        // auto-deactivate after 5 rounds
+                        await db.DeactivateSensor(sensor.Id);
+                        BotAlertSender.ManualSensorSessions.Remove(sensor.Id);
+                        Console.WriteLine($"⏹️ Auto-deactivated manual sensor {sensor.SensorCode} after 5 cycles.");
+                    }
+                    else
+                    {
+                        BotAlertSender.ManualSensorSessions[sensor.Id] = track;
+                    }
+                }
+                else
+                {
+                    simTemp = simulator.GenerateReading(sensor.BaselineTemp);
+                }
+
+                var result = new AlertResult
+                {
                     SensorCode = sensor.SensorCode,
                     DisplayName = sensor.DisplayName,
                     BarangayName = sensor.Barangay,
@@ -95,18 +116,15 @@ _ = Task.Run(async () => {
                     Lat = sensor.Lat,
                     Lng = sensor.Lng,
                     HeatIndex = simTemp,
-                    CreatedAt = GlobalData.GetPHTime() 
+                    CreatedAt = GlobalData.GetPHTime()
                 };
 
-                // Update the single most recent alert for the dashboard
-                GlobalData.LatestAlert = result; 
+                GlobalData.LatestAlert = result;
 
-                // 2. Save EVERYTHING to DB for history/graphs
-                await db.SaveHeatLog(result, sensor.Id); 
+                await db.SaveHeatLog(result, sensor.Id);
 
-                // 3. Add to our batch for the Telegram summary
                 currentBatch.Add(result);
-                
+
                 Console.WriteLine($"[V3 LOG] {sensor.DisplayName}: {simTemp}°C");
             }
 

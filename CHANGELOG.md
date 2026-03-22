@@ -33,6 +33,14 @@ This project adheres to a custom iterative development cycle.
 - **SQL State Translation:** Upgraded `UpdateSensorFlexible` to catch `Npgsql.PostgresException`, specifically translating the `23505` (Unique Violation) code into a descriptive `DUPLICATE_CODE` exception for the API layer.
 - **Precision Parameter Mapping:** Standardized the casting of coordinate values to `(decimal)` during dynamic SQL construction to maintain high-precision persistence in PostgreSQL.
 
+### 🤖 Mobile Sensor Integration (BotAlertSender.cs & DatabaseManager.cs)
+
+- **Per-User Sensor Allocation:** Implemented automatic sensor creation for each Telegram subscriber with unique `MOBILE_{chatId}` codes, defaulting to inactive state upon subscription.
+- **Manual Activation Protocol:** Added support for `/exdanger`, `/danger`, `/caution`, `/normal`, `/cool` commands to activate user-specific sensors with fixed heat indices for exactly 5 simulation cycles (150 seconds).
+- **Session-Based Expiry:** Integrated a cycle-tracking mechanism that auto-deactivates manual sensors after 5 loops, resetting them to inactive status and removing from active tracking.
+- **Fixed Heat Persistence:** Ensured manual sensor readings remain constant at the commanded temperature throughout the active session, overriding random simulation logic.
+- **Dynamic Location Pinning:** Updated sensor coordinates to the user's GPS location upon activation, enabling real-time map positioning for mobile surveyors.
+
 ---
 
 ## [3.2.0] - 2026-03-21
