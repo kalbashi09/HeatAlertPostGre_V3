@@ -5,6 +5,36 @@ This project adheres to a custom iterative development cycle.
 
 ---
 
+## [3.3.0] - 2026-03-22
+
+### 🔴 INTELLIGENT ERROR HANDLING & SECURE AUTH (The "Truth-Teller" Update)
+
+### 🔐 Secure Authentication & UI (logindash.js)
+
+- **Generic Credential Gating:** Implemented unified error messaging ("Access Denied") for failed logins, preventing attackers from identifying valid Personnel IDs through response differentiation.
+- **Asynchronous Login HUD:** Developed a dynamic submission state that replaces button text with a Lucide "loader-2" animation during C# API round-trips, providing critical feedback while the backend authenticates.
+- **Visual Feedback Engine:** Added a "Shake/Bounce" animation effect to the `errorMessage` div to provide immediate haptic-style visual feedback on failed attempts.
+
+### 🛡️ Admin Dashboard Experience (admindash.js)
+
+- **Route Guard Enforcement:** Implemented a strict `sessionStorage` check at the script entry point to instantly bounce unauthorized users back to the login portal.
+- **Intelligent Conflict Handling:** Added specific logic to intercept `401 Unauthorized` and `409 Conflict` status codes, allowing the UI to display clear warnings for expired sessions or duplicate `SensorCode` entries.
+- **Dynamic Listener Injection:** Refactored `loadSensors()` to dynamically attach event listeners for **Edit** and **Delete** actions within the table loop, ensuring seamless data binding.
+- **Refined Submit Logic:** Configured the form to automatically toggle between `POST` (Register) and `PATCH` (Update) methods based on the global `isEditMode` state.
+
+### 🛰️ Backend API & Validation (MapEndpoints.cs)
+
+- **"Outer Space" Coordinate Validation:** Implemented strict range-checking for Latitude ($\pm 90^\circ$) and Longitude ($\pm 180^\circ$) using `Math.Abs()`, preventing the registration of sensors outside Earth's boundaries.
+- **Truth-Teller Responses:** Refactored endpoints to return `Results.Json` with explicit status codes and human-readable error messages, ensuring the frontend always receives a parseable JSON object.
+- **Nullable Type Hardening:** Resolved `CS1503` compiler errors by implementing safe `.HasValue` and `.Value` access for `double?` types within the coordinate validation logic.
+
+### 🗄️ Database Logic (DatabaseManager.cs)
+
+- **SQL State Translation:** Upgraded `UpdateSensorFlexible` to catch `Npgsql.PostgresException`, specifically translating the `23505` (Unique Violation) code into a descriptive `DUPLICATE_CODE` exception for the API layer.
+- **Precision Parameter Mapping:** Standardized the casting of coordinate values to `(decimal)` during dynamic SQL construction to maintain high-precision persistence in PostgreSQL.
+
+---
+
 ## [3.2.0] - 2026-03-21
 
 ### 🔵 STABILITY & PERSISTENCE (The "Always-On" Update)
