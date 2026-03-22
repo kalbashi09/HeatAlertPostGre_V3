@@ -41,6 +41,13 @@ This project adheres to a custom iterative development cycle.
 - **Fixed Heat Persistence:** Ensured manual sensor readings remain constant at the commanded temperature throughout the active session, overriding random simulation logic.
 - **Dynamic Location Pinning:** Updated sensor coordinates to the user's GPS location upon activation, enabling real-time map positioning for mobile surveyors.
 
+### 🗺️ Geo-Spatial Barangay Detection (BotAlertSender.cs)
+
+- **Point-in-Polygon Algorithm:** Implemented ray-casting algorithm to determine barangay boundaries from GPS coordinates using the `talisaycitycebu.json` GeoJSON file.
+- **Dynamic Barangay Assignment:** Mobile sensors now automatically detect and assign the correct barangay name (e.g., "Biasong", "Bulacao") based on ping location.
+- **Out-of-Bounds Handling:** Locations outside Talisay City boundaries are labeled as "Outside of Talisay City" with fallback to "Dynamic GPS" for unknown areas.
+- **GeoJSON Integration:** Loaded barangay polygons at bot startup for efficient spatial queries during manual sensor activation.
+
 ---
 
 ## [3.2.0] - 2026-03-21

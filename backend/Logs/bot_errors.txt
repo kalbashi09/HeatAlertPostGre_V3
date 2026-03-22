@@ -2,3 +2,11 @@
 -----------------------------------
 [2026-03-15 18:40:51] Error: Bot API Request timed out
 -----------------------------------
+[2026-03-22 18:20:53] Error: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+-----------------------------------
+[2026-03-22 18:21:25] Error: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+-----------------------------------
+[2026-03-22 18:24:46] Error: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+-----------------------------------
+[2026-03-22 18:31:30] Error: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+-----------------------------------
