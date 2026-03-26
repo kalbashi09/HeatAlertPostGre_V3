@@ -183,7 +183,7 @@ namespace HeatAlert
 
             int targetHeat = command switch
             {
-                "/exdanger" => 50,
+                "/exdanger" => 87,
                 "/danger" => 43,
                 "/caution" => 40,
                 "/normal" => 32,
